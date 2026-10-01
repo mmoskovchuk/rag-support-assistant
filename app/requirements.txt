@@ -1,0 +1,28 @@
+# Exact pins = reproducible builds. Upgrade deliberately, not by accident.
+# torch is installed separately in the Dockerfile (CPU-only wheel, ~5x smaller).
+
+# API
+fastapi==0.142.2
+uvicorn[standard]==0.54.0
+pydantic-settings==2.15.0
+
+# LangChain
+langchain-core==1.6.6
+langchain-text-splitters==1.1.2
+langchain-openai==1.6.7
+langchain-huggingface==1.2.2
+langchain-chroma==1.1.0
+
+# Embeddings / vector store (client version must match the chromadb server image)
+sentence-transformers==6.1.0
+chromadb==1.5.9
+
+# Text extraction: digital PDF / Word, OCR for scans
+pypdf==6.19.0
+python-docx==1.2.0
+pytesseract==0.3.13
+pdf2image==1.17.0
+pillow
+
+# Resilience
+tenacity==9.1.4
