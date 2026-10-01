@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Support Assistant</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --surface: #ffffff; --text: #1d2330; --muted: #646d7e;
+    --border: #e1e4ea; --accent: #2f5bd3; --accent-text: #ffffff;
+    --user-bg: #2f5bd3; --user-text: #ffffff; --chip-bg: #eef2fc; --chip-text: #2a4aa8;
+    --warn-bg: #fff6e5; --warn-border: #f0d9a8; --error: #b3261e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b; --surface: #1b1f27; --text: #e6e9ef; --muted: #98a1b3;
+      --border: #2c323d; --accent: #7c9cf5; --accent-text: #0e1320;
+      --user-bg: #34477a; --user-text: #eef2ff; --chip-bg: #232b3d; --chip-text: #aec2fa;
+      --warn-bg: #2a2416; --warn-border: #4d4126; --error: #f2948c;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .app { max-width: 820px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; padding: 0 16px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 20px 0 12px; }
+  h1 { font-size: 1.15rem; margin: 0; }
+  header p { margin: 2px 0 0; color: var(--muted); font-size: .9rem; }
+  .link-btn { background: none; border: 0; color: var(--accent); cursor: pointer; font: inherit; font-size: .9rem; padding: 4px; }
+  .settings { display: none; gap: 8px; align-items: center; background: var(--surface); border: 1px solid var(--border);
+              border-radius: 10px; padding: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+  .settings.open { display: flex; }
+  .settings label { font-size: .9rem; color: var(--muted); }
+  .settings input { flex: 1; min-width: 200px; }
+  main { flex: 1; display: flex; flex-direction: column; gap: 14px; padding: 8px 0 20px; }
+  .empty { color: var(--muted); text-align: center; margin: auto 0; padding: 40px 0; }
+  .msg { max-width: 88%; padding: 12px 16px; border-radius: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .msg.user { align-self: flex-end; background: var(--user-bg); color: var(--user-text); border-bottom-right-radius: 4px; }
+  .msg.bot { align-self: flex-start; background: var(--surface); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+  .msg.bot.no-answer { background: var(--warn-bg); border-color: var(--warn-border); }
+  .msg.error { align-self: flex-start; color: var(--error); background: var(--surface); border: 1px solid var(--border); }
+  .cite { display: inline-block; font-size: .78rem; padding: 0 6px; border-radius: 6px; background: var(--chip-bg); color: var(--chip-text); white-space: nowrap; }
+  .topics { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; white-space: normal; }
+  .topic { border: 1px solid var(--border); background: var(--surface); color: var(--chip-text); border-radius: 999px;
+           padding: 5px 12px; font: inherit; font-size: .88rem; cursor: pointer; }
+  .topic:hover { border-color: var(--accent); }
+  details { margin-top: 10px; font-size: .85rem; color: var(--muted); white-space: normal; }
+  details ul { margin: 6px 0 0; padding-left: 18px; }
+  .typing { color: var(--muted); font-style: italic; }
+  form { position: sticky; bottom: 0; background: var(--bg); padding: 12px 0 20px; display: flex; gap: 8px; align-items: flex-end; }
+  textarea, input {
+    font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 12px;
+  }
+  textarea { flex: 1; resize: none; min-height: 48px; max-height: 180px; }
+  textarea:focus, input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .btn { background: var(--accent); color: var(--accent-text); border: 0; border-radius: 10px; padding: 0 18px;
+         height: 48px; font: inherit; font-weight: 600; cursor: pointer; }
+  .btn:disabled { opacity: .55; cursor: default; }
+  .btn.small { height: 38px; padding: 0 14px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <h1>Асистент підтримки</h1>
+      <p>Відповіді лише на основі документів компанії, з посиланням на джерело.</p>
+    </div>
+    <button class="link-btn" id="settings-toggle" type="button">API-ключ</button>
+  </header>
+
+  <div class="settings" id="settings">
+    <label for="api-key">API-ключ</label>
+    <input id="api-key" type="password" autocomplete="off" placeholder="значення API_KEY з .env">
+    <button class="btn small" id="save-key" type="button">Зберегти</button>
+  </div>
+
+  <main id="chat">
+    <div class="empty" id="empty">Поставте запитання, наприклад: «Скільки днів щорічної відпустки?»</div>
+  </main>
+
+  <form id="ask-form">
+    <textarea id="question" rows="1" placeholder="Ваше запитання…" maxlength="2000" required></textarea>
+    <button class="btn" id="send" type="submit">Запитати</button>
+  </form>
+</div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const chat = $("chat"), form = $("ask-form"), input = $("question"), send = $("send");
+  const KEY_STORAGE = "support-rag-api-key";
+
+  // localStorage can be unavailable (private mode, blocked storage): never let that break the page.
+  const storage = {
+    get() { try { return localStorage.getItem(KEY_STORAGE) || ""; } catch { return ""; } },
+    set(value) { try { localStorage.setItem(KEY_STORAGE, value); } catch { /* keep it in memory only */ } },
+  };
+  let apiKey = storage.get();
+  $("api-key").value = apiKey;
+  if (!apiKey) $("settings").classList.add("open");
+
+  $("settings-toggle").onclick = () => $("settings").classList.toggle("open");
+  $("save-key").onclick = () => {
+    apiKey = $("api-key").value.trim();
+    storage.set(apiKey);
+    $("settings").classList.remove("open");
+    input.focus();
+  };
+
+  function escapeHtml(text) {
+    return text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  }
+
+  // Turn "[policy.pdf, p. 2]" citations into small badges; everything else stays plain text.
+  function renderAnswer(text) {
+    return escapeHtml(text).replace(/\[([^\[\]\n]+?\.(?:pdf|docx|png|jpe?g|tiff?)(?:, p\. \d+)?)\]/gi,
+      '<span class="cite">$1</span>');
+  }
+
+  function addMessage(cls, html) {
+    $("empty")?.remove();
+    const el = document.createElement("div");
+    el.className = "msg " + cls;
+    el.innerHTML = html;
+    chat.appendChild(el);
+    el.scrollIntoView({ behavior: "smooth", block: "end" });
+    return el;
+  }
+
+  function renderBotReply(data) {
+    const el = addMessage(data.status === "no_answer" ? "bot no-answer" : "bot", renderAnswer(data.answer));
+
+    if (data.topics?.length) {
+      const box = document.createElement("div");
+      box.className = "topics";
+      for (const topic of data.topics) {
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "topic";
+        chip.textContent = topic;
+        chip.onclick = () => { input.value = topic + ": "; input.focus(); autoGrow(); };
+        box.appendChild(chip);
+      }
+      el.appendChild(box);
+    }
+
+    if (data.status === "answered" && data.sources?.length) {
+      const details = document.createElement("details");
+      const items = data.sources.map((s) =>
+        `<li>${escapeHtml(s.source)}${s.page ? ", стор. " + s.page : ""} — релевантність ${s.relevance}</li>`);
+      details.innerHTML = `<summary>Джерела (${data.sources.length})</summary><ul>${items.join("")}</ul>`;
+      el.appendChild(details);
+    }
+  }
+
+  async function ask(question) {
+    addMessage("user", escapeHtml(question));
+    const typing = addMessage("bot typing", "Шукаю в документах…");
+    send.disabled = true;
+    try {
+      const response = await fetch("/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-API-Key": apiKey },
+        body: JSON.stringify({ question }),
+      });
+      typing.remove();
+      if (response.status === 401) {
+        addMessage("error", "Невірний або відсутній API-ключ. Вкажіть його в налаштуваннях угорі.");
+        $("settings").classList.add("open");
+      } else if (!response.ok) {
+        addMessage("error", "Сервіс тимчасово недоступний. Спробуйте трохи пізніше.");
+      } else {
+        renderBotReply(await response.json());
+      }
+    } catch {
+      typing.remove();
+      addMessage("error", "Немає з'єднання із сервером.");
+    } finally {
+      send.disabled = false;
+      input.focus();
+    }
+  }
+
+  function autoGrow() {
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight, 180) + "px";
+  }
+
+  input.addEventListener("input", autoGrow);
+  input.addEventListener("keydown", (e) => {
+    // Enter sends, Shift+Enter adds a new line.
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); }
+  });
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const question = input.value.trim();
+    if (question.length < 3 || send.disabled) return;
+    input.value = "";
+    autoGrow();
+    ask(question);
+  });
+</script>
+</body>
+</html>
