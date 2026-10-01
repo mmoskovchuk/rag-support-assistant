@@ -22,7 +22,7 @@ from .file_store import (
     InvalidFileNameError,
     UnsupportedFileError,
 )
-from .ingestion import IngestionError, IngestionPipeline
+from .ingestion import IngestionError, IngestionPipeline, ReindexError
 from .logging_setup import request_id_var, setup_logging
 from .qa import QAService
 from .topics import TopicNamer
@@ -91,6 +91,10 @@ class IngestRequest(BaseModel):
     filename: str = Field(..., examples=["vacation-policy.pdf"])
 
 
+class ReindexRequest(BaseModel):
+    regenerate_topics: bool = Field(False, description="Ask the LLM to name every document again")
+
+
 class AskRequest(BaseModel):
     question: str = Field(..., min_length=3, max_length=2000)
 
@@ -144,6 +148,15 @@ def ingest_pending(request: Request) -> dict:
         except Exception as exc:
             errors.append({"filename": name, "error": str(exc)})
     return {"processed": results, "errors": errors}
+
+
+@app.post("/reindex", dependencies=[Depends(require_api_key)])
+def reindex(request: Request, body: ReindexRequest | None = None) -> dict:
+    """Rebuild the index from saved text (no OCR) after changing chunking or the embedding model."""
+    try:
+        return asdict(request.app.state.pipeline.reindex(regenerate_topics=bool(body and body.regenerate_topics)))
+    except ReindexError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, {"error": str(exc), "details": exc.errors}) from exc
 
 
 @app.post("/ask", dependencies=[Depends(require_api_key)])

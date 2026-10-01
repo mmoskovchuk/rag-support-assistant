@@ -106,7 +106,8 @@ flowchart TD
 | Дублікати в базі | детерміновані id чанків + перевірка sha256 | `chunking.split_pages`, `VectorStore.has_document` |
 | Оновлення документа | спочатку записати нову версію, потім видалити стару | `IngestionPipeline._process` |
 | Частково записаний файл | запис у temp + `fsync` + `os.replace` | `FileStore._atomic_write` |
-| Треба змінити модель ембедінгів | OCR-текст збережено поруч з оригіналом | `mark_processed(... extracted_text)` |
+| Треба змінити модель ембедінгів чи чанкінг | текст збережено поруч з оригіналом, `/reindex` будує індекс з нього без OCR | `archive.py`, `IngestionPipeline.reindex` |
+| Збій посеред перебудови індексу | нова колекція будується поруч і підміняє стару лише після успіху | `VectorStore.rebuild` |
 
 ## Безпека
 

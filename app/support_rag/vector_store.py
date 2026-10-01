@@ -1,6 +1,7 @@
 """ChromaDB storage with Hugging Face embeddings, wrapped by LangChain."""
 
 import logging
+from collections.abc import Iterable
 from functools import lru_cache
 
 import chromadb
@@ -45,15 +46,20 @@ def _connect(host: str, port: int) -> chromadb.ClientAPI:
 
 class VectorStore:
     def __init__(self, settings: Settings) -> None:
+        self._name = settings.chroma_collection
+        self._embeddings = get_embeddings(settings.embedding_model, settings.embedding_device)
         self._client = _connect(settings.chroma_host, settings.chroma_port)
-        self._lc = Chroma(
+        self._lc, self._collection = self._open(self._name)
+
+    def _open(self, name: str) -> tuple[Chroma, chromadb.Collection]:
+        lc = Chroma(
             client=self._client,
-            collection_name=settings.chroma_collection,
-            embedding_function=get_embeddings(settings.embedding_model, settings.embedding_device),
+            collection_name=name,
+            embedding_function=self._embeddings,
             collection_configuration={"hnsw": {"space": "cosine"}},
         )
         # Raw collection handle for metadata-only operations (no embeddings needed).
-        self._collection = self._client.get_collection(settings.chroma_collection)
+        return lc, self._client.get_collection(name)
 
     def heartbeat(self) -> None:
         self._client.heartbeat()
@@ -77,6 +83,35 @@ class VectorStore:
             self._collection.delete(ids=stale)
             logger.info("Removed %d chunk(s) of older versions of %s", len(stale), source)
         return len(stale)
+
+    def rebuild(self, batches: Iterable[tuple[list[Document], list[str]]]) -> int:
+        """Replace the whole index with new content, without a window where it is half-built.
+
+        Everything is written into a temporary collection first. Only when that
+        succeeded is the live collection dropped and the new one renamed in its
+        place. If embedding fails halfway, the live index is untouched.
+        A fresh collection is also the only way to switch to an embedding model
+        with a different vector size.
+        """
+        temp_name = f"{self._name}__rebuild"
+        if temp_name in {c.name for c in self._client.list_collections()}:
+            self._client.delete_collection(temp_name)  # leftover of an interrupted rebuild
+
+        temp_lc, temp_collection = self._open(temp_name)
+        total = 0
+        try:
+            for documents, ids in batches:
+                temp_lc.add_documents(documents, ids=ids)
+                total += len(ids)
+        except Exception:
+            self._client.delete_collection(temp_name)
+            raise
+
+        self._client.delete_collection(self._name)
+        temp_collection.modify(name=self._name)
+        self._lc, self._collection = self._open(self._name)
+        logger.info("Index rebuilt: %d chunk(s) in collection %s", total, self._name)
+        return total
 
     def search(self, query: str, k: int) -> list[tuple[Document, float]]:
         """Return (chunk, relevance) pairs, relevance = cosine similarity in [0, 1]."""

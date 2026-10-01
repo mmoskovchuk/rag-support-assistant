@@ -77,6 +77,18 @@ class FileStore:
             if p.is_file() and not p.name.startswith(".") and p.suffix.lower() in SUPPORTED_EXTENSIONS
         )
 
+    def list_archives(self) -> list[tuple[Path, Path]]:
+        """Return (original file, text archive) pairs from processed/, oldest first.
+
+        Day folders sort chronologically by name; within a day, by modification time.
+        """
+        pairs = []
+        for text_path in self.processed.glob("*/*.txt"):
+            original = text_path.with_name(text_path.name.removesuffix(".txt"))
+            if original.is_file():
+                pairs.append((original, text_path))
+        return sorted(pairs, key=lambda pair: (pair[0].parent.name, pair[1].stat().st_mtime))
+
     def wait_until_stable(self, path: Path) -> None:
         """Block until the file size stops changing.
 
