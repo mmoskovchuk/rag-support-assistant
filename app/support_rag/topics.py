@@ -10,8 +10,9 @@ import re
 from pathlib import Path
 
 from langchain_core.language_models import BaseChatModel
-from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
+
+from .llm_usage import Pricing, record_usage
 
 logger = logging.getLogger(__name__)
 
@@ -35,14 +36,17 @@ def topic_from_filename(filename: str) -> str:
 
 
 class TopicNamer:
-    def __init__(self, llm: BaseChatModel, max_chars: int) -> None:
-        self._chain = TOPIC_PROMPT | llm | StrOutputParser()
+    def __init__(self, llm: BaseChatModel, max_chars: int, pricing: Pricing | None = None) -> None:
+        self._chain = TOPIC_PROMPT | llm
         self._max_chars = max_chars
+        self._pricing = pricing or Pricing(0.0, 0.0)
 
     def name(self, text: str, filename: str) -> str:
         try:
             # The beginning (title, preamble) describes a document well and keeps the call cheap.
-            topic = self._chain.invoke({"text": text[: self._max_chars]})
+            message = self._chain.invoke({"text": text[: self._max_chars]})
+            record_usage(message, self._pricing, purpose=f"topic of {filename}")
+            topic = str(message.content)
         except Exception:
             # A missing topic must never block indexing: the document itself matters more.
             logger.warning("Topic generation failed for %s, using the file name", filename, exc_info=True)

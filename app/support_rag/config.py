@@ -72,6 +72,10 @@ class Settings(BaseSettings):
     openai_temperature: float = 0.0
     openai_timeout: float = 60.0
     openai_max_retries: int = 3
+    # Standard pricing of the model above, USD per 1M tokens (OpenAI pricing page, October 2026).
+    # Only used to report costs; update together with OPENAI_MODEL.
+    openai_input_price_per_1m: float = 0.40
+    openai_output_price_per_1m: float = 1.60
 
     @property
     def inbox_dir(self) -> Path:

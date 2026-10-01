@@ -7,11 +7,11 @@ from typing import Literal, Protocol
 
 from langchain_core.documents import Document
 from langchain_core.language_models import BaseChatModel
-from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
 from .config import Settings
 from .extraction import NO_PAGE
+from .llm_usage import LLMUsage, Pricing, record_usage
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +70,8 @@ class Answer:
     sources: list[Source] = field(default_factory=list)
     # For "no_answer": topics of the closest documents, most relevant first.
     topics: list[str] = field(default_factory=list)
+    # Tokens and cost of the LLM call; None when the LLM was not called (below threshold).
+    usage: LLMUsage | None = None
 
 
 def source_label(metadata: dict) -> str:
@@ -111,7 +113,9 @@ class QAService:
     def __init__(self, settings: Settings, retriever: Retriever, llm: BaseChatModel) -> None:
         self._s = settings
         self._retriever = retriever
-        self._chain = PROMPT | llm | StrOutputParser()
+        # No output parser: the raw message carries token usage, which a string parser would drop.
+        self._chain = PROMPT | llm
+        self._pricing = Pricing.from_settings(settings)
 
     def ask(self, question: str) -> Answer:
         # Retrieval and LLM errors (ChromaDB or OpenAI down) propagate: that is an outage,
@@ -127,14 +131,18 @@ class QAService:
         if not relevant:
             return self._no_answer(question, "no_relevant_context", hits, pool)
 
-        text = self._chain.invoke({"context": format_context(relevant), "question": question}).strip()
+        message = self._chain.invoke({"context": format_context(relevant), "question": question})
+        usage = record_usage(message, self._pricing, purpose="answer")
+        text = str(message.content).strip()
 
         if not text or NO_ANSWER in text:
-            return self._no_answer(question, "llm_insufficient_context", hits, pool)
+            return self._no_answer(question, "llm_insufficient_context", hits, pool, usage)
 
-        return Answer(status="answered", answer=text, sources=self._sources(relevant))
+        return Answer(status="answered", answer=text, sources=self._sources(relevant), usage=usage)
 
-    def _no_answer(self, question: str, reason: str, hits: list, pool: list) -> Answer:
+    def _no_answer(
+        self, question: str, reason: str, hits: list, pool: list, usage: LLMUsage | None = None
+    ) -> Answer:
         topics = distinct_topics(pool, self._s.max_suggested_topics)
         logger.info("No answer in the knowledge base (%s), suggesting %d topic(s)", reason, len(topics))
         return Answer(
@@ -143,6 +151,7 @@ class QAService:
             reason=reason,
             sources=self._sources(hits),
             topics=topics,
+            usage=usage,
         )
 
     @staticmethod

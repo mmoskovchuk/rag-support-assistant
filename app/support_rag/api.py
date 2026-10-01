@@ -23,6 +23,7 @@ from .file_store import (
     UnsupportedFileError,
 )
 from .ingestion import IngestionError, IngestionPipeline, ReindexError
+from .llm_usage import Pricing
 from .logging_setup import request_id_var, setup_logging
 from .qa import QAService
 from .topics import TopicNamer
@@ -56,7 +57,9 @@ async def lifespan(app: FastAPI):
 
     app.state.files = files
     app.state.store = store
-    app.state.pipeline = IngestionPipeline(settings, files, store, TopicNamer(llm, settings.topic_max_chars))
+    app.state.pipeline = IngestionPipeline(
+        settings, files, store, TopicNamer(llm, settings.topic_max_chars, Pricing.from_settings(settings))
+    )
     app.state.qa = QAService(settings, store, llm)
     logger.info("Service ready")
     yield
