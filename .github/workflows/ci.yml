@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"  # same as the Docker image
+          cache: pip
+          cache-dependency-path: app/requirements-dev.txt
+
+      # The lightweight dev set: no torch, OCR binaries or API keys are needed for unit tests.
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Lint
+        run: ruff check . ../scripts
+
+      - name: Test
+        run: pytest -q
