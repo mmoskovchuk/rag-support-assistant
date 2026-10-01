@@ -13,6 +13,11 @@ def test_topic_is_cleaned_from_quotes_and_period():
     assert namer.name("text", "scan_001.pdf") == "Порядок надання відпустки"
 
 
+def test_topic_starts_with_capital_letter():
+    namer = TopicNamer(FakeListChatModel(responses=["перелік медичного обладнання"]), max_chars=100)
+    assert namer.name("text", "scan.jpg") == "Перелік медичного обладнання"
+
+
 def test_falls_back_to_file_name_when_llm_fails():
     namer = TopicNamer(BrokenLLM(responses=["unused"]), max_chars=100)
     assert namer.name("text", "vacation_policy-2026.pdf") == "Vacation policy 2026"

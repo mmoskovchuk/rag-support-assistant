@@ -51,4 +51,5 @@ class TopicNamer:
         topic = topic.strip(" \n\"'«»„“”.")
         if not topic or len(topic) > 120:
             return topic_from_filename(filename)
-        return topic
+        # Models do not always follow "sentence case"; topics are shown as list items, so enforce it.
+        return topic[0].upper() + topic[1:]
