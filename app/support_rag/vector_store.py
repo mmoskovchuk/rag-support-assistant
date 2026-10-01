@@ -17,16 +17,23 @@ logger = logging.getLogger(__name__)
 
 
 @lru_cache
-def get_embeddings(model_name: str, device: str) -> Embeddings:
+def get_embeddings(model_name: str, device: str, query_prefix: str = "", document_prefix: str = "") -> Embeddings:
     # Imported lazily: it pulls in torch, which takes seconds and lots of RAM.
     from langchain_huggingface import HuggingFaceEmbeddings
+
+    def encode_kwargs(prefix: str) -> dict:
+        # Unit-length vectors make cosine distance well defined and comparable.
+        kwargs: dict = {"normalize_embeddings": True}
+        if prefix:
+            kwargs["prompt"] = prefix  # sentence-transformers prepends it to every text
+        return kwargs
 
     logger.info("Loading embedding model %s on %s", model_name, device)
     return HuggingFaceEmbeddings(
         model_name=model_name,
         model_kwargs={"device": device},
-        # Unit-length vectors make cosine distance well defined and comparable.
-        encode_kwargs={"normalize_embeddings": True},
+        encode_kwargs=encode_kwargs(document_prefix),
+        query_encode_kwargs=encode_kwargs(query_prefix),
     )
 
 
@@ -47,9 +54,16 @@ def _connect(host: str, port: int) -> chromadb.ClientAPI:
 class VectorStore:
     def __init__(self, settings: Settings) -> None:
         self._name = settings.chroma_collection
-        self._embeddings = get_embeddings(settings.embedding_model, settings.embedding_device)
+        self._model = settings.embedding_model
+        self._embeddings = get_embeddings(
+            settings.embedding_model,
+            settings.embedding_device,
+            settings.embedding_query_prefix,
+            settings.embedding_document_prefix,
+        )
         self._client = _connect(settings.chroma_host, settings.chroma_port)
         self._lc, self._collection = self._open(self._name)
+        self._warn_on_model_mismatch()
 
     def _open(self, name: str) -> tuple[Chroma, chromadb.Collection]:
         lc = Chroma(
@@ -57,9 +71,21 @@ class VectorStore:
             collection_name=name,
             embedding_function=self._embeddings,
             collection_configuration={"hnsw": {"space": "cosine"}},
+            # Remember which model produced the vectors: vectors of different models are not comparable.
+            collection_metadata={"embedding_model": self._model},
         )
         # Raw collection handle for metadata-only operations (no embeddings needed).
         return lc, self._client.get_collection(name)
+
+    def _warn_on_model_mismatch(self) -> None:
+        indexed_with = (self._collection.metadata or {}).get("embedding_model")
+        if indexed_with != self._model and self._collection.count():
+            logger.warning(
+                "Index was built with %s but EMBEDDING_MODEL is %s: search results are meaningless "
+                "until you call POST /reindex",
+                indexed_with or "an unknown model",
+                self._model,
+            )
 
     def heartbeat(self) -> None:
         self._client.heartbeat()
