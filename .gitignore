@@ -1,0 +1,31 @@
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Runtime data (company documents must never reach a public repo)
+data/**
+!data/*/
+!data/*/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Logs (may contain employee questions)
+*.log
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Personal learning notes (kept local)
+notes/

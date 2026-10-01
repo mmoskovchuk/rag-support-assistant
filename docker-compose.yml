@@ -1,0 +1,56 @@
+name: rag-support-assistant
+
+services:
+  chromadb:
+    image: chromadb/chroma:1.5.9  # keep in sync with chromadb in app/requirements.txt
+    environment:
+      ANONYMIZED_TELEMETRY: "FALSE"
+    volumes:
+      - chroma_data:/data
+    ports:
+      # Host ports are configurable in .env, so the stack can coexist with other projects.
+      # Inside the Docker network every service keeps its own fixed port.
+      - "127.0.0.1:${CHROMA_HOST_PORT:-8101}:8000"  # for debugging only; services talk over the internal network
+    restart: unless-stopped
+
+  rag-api:
+    build: ./app
+    env_file: .env
+    environment:
+      DATA_DIR: /data
+      CHROMA_HOST: chromadb
+      CHROMA_PORT: "8000"
+    volumes:
+      - ./data:/data          # inbox / processing / processed / failed
+      - hf_cache:/models      # Hugging Face model cache, survives rebuilds
+    ports:
+      - "127.0.0.1:${API_HOST_PORT:-8100}:8000"
+    depends_on:
+      chromadb:
+        condition: service_started
+    restart: unless-stopped
+
+  n8n:
+    image: n8nio/n8n:2.42.2
+    environment:
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+      GENERIC_TIMEZONE: ${TZ:-Europe/Kyiv}
+      TZ: ${TZ:-Europe/Kyiv}
+      WEBHOOK_URL: http://localhost:${N8N_HOST_PORT:-5690}/
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      # n8n 2.x disables the Local File Trigger by default. Re-enable it while
+      # keeping Execute Command (arbitrary shell access) disabled.
+      NODES_EXCLUDE: '["n8n-nodes-base.executeCommand"]'
+      # n8n may only touch files in the inbox.
+      N8N_RESTRICT_FILE_ACCESS_TO: /data/inbox
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./data/inbox:/data/inbox:ro  # read-only: n8n only watches, the API moves files
+    ports:
+      - "127.0.0.1:${N8N_HOST_PORT:-5690}:5678"
+    restart: unless-stopped
+
+volumes:
+  chroma_data:
+  n8n_data:
+  hf_cache:
