@@ -73,7 +73,11 @@ curl http://localhost:8100/health
 
 Порти на хості (8100 API/вебчат, 8101 ChromaDB, 5690 n8n) задаються в `.env` змінними `API_HOST_PORT`, `CHROMA_HOST_PORT`, `N8N_HOST_PORT`, якщо вони зайняті іншими проєктами.
 
-Далі налаштуйте workflow індексації в n8n (http://localhost:5690) за інструкцією [docs/03-n8n-workflows.md](docs/03-n8n-workflows.md).
+Далі налаштуйте автоматичну індексацію в n8n (http://localhost:5690):
+
+1. **Workflows → Import from File →** [`n8n/workflows/ingest-documents.json`](n8n/workflows/ingest-documents.json).
+2. Створіть credential типу *Header Auth* з назвою `RAG API key`: заголовок `X-API-Key`, значення `API_KEY` з `.env`. Оберіть його в обох нодах HTTP Request.
+3. Активуйте workflow. Файл, покладений у `data/inbox`, індексується за кілька секунд, а розклад щоп'ятнадцять хвилин перевіряє папку ще раз, тож файли, додані під час простою n8n, не губляться.
 
 ![n8n workflow «Ingest documents»: Local File Trigger → POST /ingest → перевірка статусу → Stop and Error; Schedule Trigger → POST /ingest/pending](docs/img/n8n-ingest-workflow.png)
 
@@ -96,6 +100,20 @@ curl -X POST http://localhost:8100/ingest/pending -H "X-API-Key: $API_KEY"
 
 Далі відкрийте вебчат і спитайте, наприклад: «Скільки днів відпустки, якщо я працюю 4 роки?», «Як часто треба змінювати пароль?», «How much is the internet compensation for remote work?» або щось, чого в документах немає: «Чи можна привести собаку в офіс?».
 
+## Вартість
+
+Виміряно реальними викликами на демо-наборі (`gpt-4.1-mini`, $0.40 / $1.60 за 1M вхідних / вихідних токенів):
+
+| Що | Вартість |
+|---|---|
+| Одне запитання з відповіддю (~700 вхідних + ~40 вихідних токенів) | ~$0.0003–0.0004, тобто **~2 500 запитань за $1** |
+| Запитання нижче порогу релевантності | $0 (LLM не викликається) |
+| Назва теми нового документа (разово) | ~$0.00015 |
+| Компанія на 50 / 500 працівників, по 3 запитання на день | ~$1.3 / ~$13 на місяць за OpenAI |
+| Сервер для ембедінгів, ChromaDB, OCR, n8n (4 vCPU / 8 GB) | ~€7–11 на місяць |
+
+Кожен виклик LLM логує токени й вартість, а `/ask` повертає їх у полі `usage`. Деталі й припущення: [docs/experiments.md](docs/experiments.md#2-вартість-використання-2026-10-01).
+
 ## API
 
 | Метод | Шлях | Опис |
@@ -115,9 +133,8 @@ curl -X POST http://localhost:8100/ingest/pending -H "X-API-Key: $API_KEY"
 |---|---|
 | [docs/01-architecture.md](docs/01-architecture.md) | архітектура, рішення та їх обґрунтування, захист від втрати даних |
 | [docs/02-python-service.md](docs/02-python-service.md) | розбір Python-коду модуль за модулем |
-| [docs/03-n8n-workflows.md](docs/03-n8n-workflows.md) | workflow n8n нода за нодою |
-| [docs/04-docker.md](docs/04-docker.md) | Docker Compose та Dockerfile пояснено |
-| [docs/experiments.md](docs/experiments.md) | вимірювання: вибір embedding-моделі, розміру чанка й порогу |
+| [docs/03-docker.md](docs/03-docker.md) | Docker Compose та Dockerfile пояснено |
+| [docs/experiments.md](docs/experiments.md) | вимірювання: embedding-модель, розмір чанка, поріг, вартість |
 
 ## Структура
 
@@ -137,6 +154,7 @@ rag-support-assistant/
 │   │   ├── ingestion.py      # пайплайн індексації + reindex
 │   │   ├── archive.py        # формат .txt-архіву поруч з оригіналом
 │   │   ├── qa.py             # пошук → рішення → LLM / підказки тем
+│   │   ├── llm_usage.py      # токени й вартість кожного виклику LLM
 │   │   └── static/index.html # вебчат
 │   ├── tests/                # pytest, без важких залежностей
 │   ├── Dockerfile

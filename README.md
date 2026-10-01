@@ -75,7 +75,11 @@ Web chat: http://localhost:8100 (enter `API_KEY` from `.env` on first visit).
 
 Host ports (8100 API/web chat, 8101 ChromaDB, 5690 n8n) are configurable in `.env` via `API_HOST_PORT`, `CHROMA_HOST_PORT` and `N8N_HOST_PORT` in case they clash with other projects.
 
-Then import or build the ingestion workflow in n8n (http://localhost:5690): the exported workflow is in [`n8n/workflows/ingest-documents.json`](n8n/workflows/ingest-documents.json), and a node-by-node guide is in [docs/03-n8n-workflows.md](docs/03-n8n-workflows.md).
+Then set up automatic ingestion in n8n (http://localhost:5690):
+
+1. **Workflows → Import from File →** [`n8n/workflows/ingest-documents.json`](n8n/workflows/ingest-documents.json).
+2. Create a *Header Auth* credential named `RAG API key`: header `X-API-Key`, value = `API_KEY` from `.env`. Select it in both HTTP Request nodes.
+3. Activate the workflow. A file dropped into `data/inbox` is now indexed within seconds; a schedule re-checks the folder every 15 minutes, so files added while n8n was down are not lost.
 
 ![n8n workflow "Ingest documents": Local File Trigger → POST /ingest → status check → Stop and Error; Schedule Trigger → POST /ingest/pending](docs/img/n8n-ingest-workflow.png)
 
@@ -98,6 +102,20 @@ curl -X POST http://localhost:8100/ingest/pending -H "X-API-Key: $API_KEY"
 
 Then open the web chat and ask, for example, "How much is the internet compensation for remote work?", «Скільки днів відпустки, якщо я працюю 4 роки?» (How many vacation days after 4 years?), or something the documents do not cover: «Чи можна привести собаку в офіс?» (Can I bring a dog to the office?).
 
+## Running costs
+
+Measured with real calls on the demo set (`gpt-4.1-mini`, $0.40 / $1.60 per 1M input / output tokens):
+
+| Item | Cost |
+|---|---|
+| One answered question (~700 input + ~40 output tokens) | ~$0.0003–0.0004, i.e. **~2,500 questions per $1** |
+| A question below the relevance threshold | $0 (the LLM is not called) |
+| Topic name for a new document (one-off) | ~$0.00015 |
+| Company of 50 / 500 employees, 3 questions a day each | ~$1.3 / ~$13 per month for OpenAI |
+| Server for embeddings, ChromaDB, OCR, n8n (4 vCPU / 8 GB) | ~€7–11 per month |
+
+Every LLM call logs its tokens and cost, and `/ask` returns them in the `usage` field. Details and assumptions: [docs/experiments.md](docs/experiments.md#2-вартість-використання-2026-10-01).
+
 ## API
 
 | Method | Path | Description |
@@ -119,9 +137,8 @@ Detailed documentation is written in Ukrainian:
 |---|---|
 | [docs/01-architecture.md](docs/01-architecture.md) | architecture, design decisions and their rationale, data-loss protection |
 | [docs/02-python-service.md](docs/02-python-service.md) | module-by-module walkthrough of the Python code |
-| [docs/03-n8n-workflows.md](docs/03-n8n-workflows.md) | the n8n workflow node by node |
-| [docs/04-docker.md](docs/04-docker.md) | Docker Compose and the Dockerfile explained |
-| [docs/experiments.md](docs/experiments.md) | measurements: choosing the embedding model, chunk size and threshold |
+| [docs/03-docker.md](docs/03-docker.md) | Docker Compose and the Dockerfile explained |
+| [docs/experiments.md](docs/experiments.md) | measurements: embedding model, chunk size, threshold, running costs |
 
 ## Project structure
 
@@ -141,6 +158,7 @@ rag-support-assistant/
 │   │   ├── ingestion.py      # ingestion pipeline + reindex
 │   │   ├── archive.py        # format of the .txt archive next to each original
 │   │   ├── qa.py             # search → decision → LLM / topic suggestions
+│   │   ├── llm_usage.py      # tokens and cost of every LLM call
 │   │   └── static/index.html # web chat
 │   ├── tests/                # pytest, no heavy dependencies
 │   ├── Dockerfile
