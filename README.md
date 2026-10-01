@@ -59,6 +59,8 @@ curl http://localhost:8100/health
 
 Далі налаштуйте workflow індексації в n8n (http://localhost:5690) за інструкцією [docs/03-n8n-workflows.md](docs/03-n8n-workflows.md).
 
+![n8n workflow «Ingest documents»: Local File Trigger → POST /ingest → перевірка статусу → Stop and Error; Schedule Trigger → POST /ingest/pending](docs/img/n8n-ingest-workflow.png)
+
 ## Демо
 
 У [`demo/documents/`](demo/documents) лежать п'ять документів вигаданої компанії, по одному на кожен підтримуваний шлях обробки:

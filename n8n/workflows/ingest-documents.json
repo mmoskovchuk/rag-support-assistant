@@ -1,0 +1,234 @@
+{
+  "updatedAt": "2026-10-01T12:08:05.000Z",
+  "createdAt": "2026-10-01T11:51:37.213Z",
+  "id": "nqZXekmpToAMQj5K",
+  "name": "Ingest documents",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "triggerOn": "folder",
+        "path": "/data/inbox",
+        "events": [
+          "add"
+        ],
+        "options": {
+          "ignored": "**/.*",
+          "usePolling": true
+        }
+      },
+      "type": "n8n-nodes-base.localFileTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "af41cef5-5e38-4e71-afea-94eab83aaaaa",
+      "name": "Local File Trigger"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://rag-api:8000/ingest",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "filename",
+              "value": "={{ $json.path.split('/').pop() }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 600000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        240,
+        0
+      ],
+      "id": "b1c5e5e8-2920-48cf-acbe-47e4af2bfdca",
+      "name": "Ingest file",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "aWjZgy5P6VxOGixI",
+          "name": "RAG API key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "e5abaf35-8d26-49ee-be46-acf52d2d88f0",
+              "leftValue": "={{ $json.statusCode }}",
+              "rightValue": 300,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        480,
+        0
+      ],
+      "id": "605aab73-37c2-42aa-8c79-c4704c44351b",
+      "name": "Success?"
+    },
+    {
+      "parameters": {
+        "errorMessage": "=Ingestion failed (HTTP {{ $json.statusCode }}): {{ $json.body.detail?.error ?? $json.body.detail ?? $json.statusMessage }}"
+      },
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        720,
+        100
+      ],
+      "id": "5c0f6a43-0d7e-4c55-9a51-1f3c2a7e9b01",
+      "name": "Stop and Error"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        260
+      ],
+      "id": "4c56b900-4bd4-42d3-a5c4-d778932f4775",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://rag-api:8000/ingest/pending",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 600000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        240,
+        260
+      ],
+      "id": "9e2b7d10-4f3a-4b8e-8c6d-2a5f1e0c7d22",
+      "name": "Ingest pending files",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "aWjZgy5P6VxOGixI",
+          "name": "RAG API key"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Local File Trigger": {
+      "main": [
+        [
+          {
+            "node": "Ingest file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ingest file": {
+      "main": [
+        [
+          {
+            "node": "Success?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Success?": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Stop and Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Ingest pending files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": {
+    "node:Schedule Trigger": {
+      "recurrenceRules": [
+        null
+      ],
+      "recurrenceRuleSignatures": [
+        null
+      ]
+    }
+  },
+  "meta": null,
+  "nodeGroups": [],
+  "pinData": {},
+  "versionId": "8994f41f-3660-46a6-9536-68779de00cfa",
+  "activeVersionId": "8994f41f-3660-46a6-9536-68779de00cfa",
+  "versionCounter": 39,
+  "triggerCount": 2,
+  "sourceWorkflowId": null,
+  "tags": [],
+  "parentFolder": null
+}
