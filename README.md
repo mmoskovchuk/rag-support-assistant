@@ -59,6 +59,25 @@ curl http://localhost:8100/health
 
 Далі налаштуйте workflow індексації в n8n (http://localhost:5690) за інструкцією [docs/03-n8n-workflows.md](docs/03-n8n-workflows.md).
 
+## Демо
+
+У [`demo/documents/`](demo/documents) лежать п'ять документів вигаданої компанії, по одному на кожен підтримуваний шлях обробки:
+
+| Файл | Формат | Як обробляється |
+|---|---|---|
+| `vacation-policy.docx` | Word з таблицею | читання абзаців і таблиць |
+| `onboarding-guide.docx` | Word | читання абзаців |
+| `business-trips.pdf` | цифровий PDF | текстовий шар, без OCR |
+| `information-security.pdf` | цифровий PDF | текстовий шар, без OCR |
+| `remote-work-order-scan.jpg` | «скан» з нахилом і шумом | OCR (Tesseract) |
+
+```bash
+cp demo/documents/* data/inbox/
+curl -X POST http://localhost:8100/ingest/pending -H "X-API-Key: $API_KEY"
+```
+
+Далі відкрийте вебчат і спитайте, наприклад: «Скільки днів відпустки, якщо я працюю 4 роки?», «Як часто треба змінювати пароль?», «How much is the internet compensation for remote work?» або щось, чого в документах немає: «Чи можна привести собаку в офіс?».
+
 ## API
 
 | Метод | Шлях | Опис |
@@ -67,6 +86,7 @@ curl http://localhost:8100/health
 | GET | `/health` | стан сервісу та зв'язку з ChromaDB |
 | POST | `/ingest` | `{"filename": "x.pdf"}`: обробити файл з `data/inbox` |
 | POST | `/ingest/pending` | обробити все, що лишилось в `inbox` (страховка) |
+| POST | `/reindex` | `{"regenerate_topics": false}`: перебудувати індекс зі збереженого тексту, без OCR |
 | POST | `/ask` | `{"question": "..."}`: відповідь з джерелами або `no_answer` з підказками тем |
 
 Усі ендпоінти, крім `/` і `/health`, вимагають заголовок `X-API-Key`. Інтерактивна документація доступна за адресою http://localhost:8100/docs.
@@ -95,13 +115,15 @@ rag-support-assistant/
 │   │   ├── topics.py         # коротка назва теми документа через LLM
 │   │   ├── chunking.py       # LangChain text splitter + метадані
 │   │   ├── vector_store.py   # ChromaDB + HF embeddings
-│   │   ├── ingestion.py      # пайплайн індексації
+│   │   ├── ingestion.py      # пайплайн індексації + reindex
+│   │   ├── archive.py        # формат .txt-архіву поруч з оригіналом
 │   │   ├── qa.py             # пошук → рішення → LLM / підказки тем
 │   │   └── static/index.html # вебчат
 │   ├── tests/                # pytest, без важких залежностей
 │   ├── Dockerfile
 │   └── requirements.txt
 ├── data/                     # runtime-дані (у git лише порожні папки)
+├── demo/documents/           # вигадані документи для демонстрації
 ├── docs/                     # технічна документація
 ├── n8n/workflows/            # експортовані workflow (JSON)
 ├── docker-compose.yml
