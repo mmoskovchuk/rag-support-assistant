@@ -40,7 +40,7 @@ flowchart LR
 | Видобування тексту | pypdf, python-docx | точний текст з цифрових PDF і Word, без OCR |
 | OCR | Tesseract (`ukr+eng`), Poppler | друкований текст зі сканів |
 | RAG | LangChain | розбиття тексту, промпти, інтеграції |
-| Embeddings | Hugging Face `paraphrase-multilingual-MiniLM-L12-v2` | локально, безкоштовно, підтримує українську |
+| Embeddings | Hugging Face `BAAI/bge-m3` | локально, безкоштовно, найкраща з 4 протестованих моделей ([експеримент](docs/experiments.md)) |
 | Vector DB | ChromaDB 1.5 | локальне зберігання векторів і метаданих |
 | LLM | OpenAI API | генерація відповіді та назв тем документів |
 | Інфраструктура | Docker Compose | запуск усього однією командою |
@@ -99,6 +99,7 @@ curl -X POST http://localhost:8100/ingest/pending -H "X-API-Key: $API_KEY"
 | [docs/02-python-service.md](docs/02-python-service.md) | розбір Python-коду модуль за модулем |
 | [docs/03-n8n-workflows.md](docs/03-n8n-workflows.md) | workflow n8n нода за нодою |
 | [docs/04-docker.md](docs/04-docker.md) | Docker Compose та Dockerfile пояснено |
+| [docs/experiments.md](docs/experiments.md) | вимірювання: вибір embedding-моделі, розміру чанка й порогу |
 
 ## Структура
 
@@ -124,7 +125,8 @@ rag-support-assistant/
 │   └── requirements.txt
 ├── data/                     # runtime-дані (у git лише порожні папки)
 ├── demo/documents/           # вигадані документи для демонстрації
-├── docs/                     # технічна документація
+├── docs/                     # технічна документація та експерименти
+├── scripts/                  # скрипт порівняння embedding-моделей
 ├── n8n/workflows/            # експортовані workflow (JSON)
 ├── docker-compose.yml
 └── .env.example

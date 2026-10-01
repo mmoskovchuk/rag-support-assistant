@@ -45,16 +45,21 @@ class Settings(BaseSettings):
     chroma_collection: str = "company_docs"
 
     # --- Embeddings (Hugging Face) ---
-    embedding_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    # Chosen by measurement on the demo set, see docs/experiments.md.
+    embedding_model: str = "BAAI/bge-m3"
     embedding_device: str = "cpu"
+    # Some models (the e5 family) are trained with role prefixes and work noticeably worse without them.
+    embedding_query_prefix: str = ""
+    embedding_document_prefix: str = ""
 
     # --- Chunking ---
-    chunk_size: int = 1000
-    chunk_overlap: int = 150
+    chunk_size: int = 500
+    chunk_overlap: int = 80
 
     # --- Retrieval ---
     top_k: int = 4
-    relevance_threshold: float = 0.45  # cosine similarity in [0, 1]
+    # Cosine similarity in [0, 1]. Scales differ between models: re-tune it after changing EMBEDDING_MODEL.
+    relevance_threshold: float = 0.45
 
     # --- Topic suggestions when there is no answer ---
     topic_max_chars: int = 4000  # how much of a document the LLM reads to name its topic
