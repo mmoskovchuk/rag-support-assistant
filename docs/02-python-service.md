@@ -119,7 +119,7 @@ inbox/ ──claim──▶ processing/ ──▶ processed/2026-10-01/file.pdf 
 - «Answer in the same language as the question» потрібна, бо документи українською, але питання можуть бути англійською;
 - «cite its source exactly as the label in square brackets» забезпечує перевірюваність. Мітку формує `source_label()`: `[файл, p. N]` для PDF і `[файл]` для Word.
 
-Ланцюжок `PROMPT | llm | StrOutputParser()` написано мовою **LCEL** (LangChain Expression Language): дані проходять через кроки, як у Unix-пайпі.
+Ланцюжок `PROMPT | llm` написано мовою **LCEL** (LangChain Expression Language): дані проходять через кроки, як у Unix-пайпі.
 
 `QAService` не знає ні про ChromaDB, ні про OpenAI. Він отримує `retriever` і `llm` ззовні (**dependency injection**). Саме тому в тестах їх легко підмінити на фейкові (`FakeListChatModel`), і тести не потребують API-ключа чи бази.
 
@@ -132,6 +132,10 @@ inbox/ ──claim──▶ processing/ ──▶ processed/2026-10-01/file.pdf 
 **Повідомлення без LLM.** `no_answer_message()` будує текст із шаблону `NO_ANSWER_TEXT`, мову визначає `detect_language()` (є кирилиця → українська). Тут LLM не потрібна: текст передбачуваний, безкоштовний і не може «нафантазувати».
 
 Політика помилок: ChromaDB чи OpenAI недоступні → HTTP 503. Це аварія інфраструктури, а не «відповіді немає», і клієнт має розрізняти ці ситуації.
+
+## `llm_usage.py`: скільки коштує кожен виклик
+
+Відповідь моделі (`AIMessage`) містить `usage_metadata` з кількістю вхідних і вихідних токенів. `record_usage()` множить їх на ціни з `Settings` (`OPENAI_INPUT_PRICE_PER_1M`, `OPENAI_OUTPUT_PRICE_PER_1M`), пише рядок у лог і повертає `LLMUsage`. Тому в `qa.py` і `topics.py` ланцюжок закінчується самою моделлю, без `StrOutputParser`: парсер повернув би лише рядок і загубив би метадані. `/ask` віддає вартість у полі `usage` (`null`, якщо LLM не викликалась). Ціни в конфігурації треба оновлювати разом зі зміною `OPENAI_MODEL`.
 
 ## `api.py`: FastAPI
 
